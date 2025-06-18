@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "schoolName": {
+      "value": "vgs-IKT"
+    },
+    "cohortId": {
+      "value": "H2025"
+    },
+    "numberOfStudents": {
+      "value": 26
+    },
+    "location": {
+      "value": "norwayeast"
+    },
+    "dailyCostLimitPerStudent": {
+      "value": 75
+    },
+    "maxVmsPerStudent": {
+      "value": 2
+    },
+    "autoShutdownHours": {
+      "value": 2
+    }
+  }
+}
