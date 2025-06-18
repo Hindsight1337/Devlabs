@@ -2,11 +2,6 @@
   "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "_generator": {
-      "name": "bicep",
-      "version": "0.4.1124.51302",
-      "templateHash": "8653046555447693168"
-    },
     "description": "Azure DevTest Labs for educational use with cost control and security"
   },
   "parameters": {
@@ -58,13 +53,6 @@
       "metadata": {
         "description": "Maksimalt antall VM-er per elev"
       }
-    },
-    "autoShutdownHours": {
-      "type": "int",
-      "defaultValue": 2,
-      "metadata": {
-        "description": "Auto-shutdown tid (timer)"
-      }
     }
   },
   "variables": {
@@ -97,32 +85,6 @@
           "scope": "inner"
         },
         "mode": "Incremental",
-        "parameters": {
-          "labName": {
-            "value": "[variables('labName')]"
-          },
-          "location": {
-            "value": "[variables('labLocation')]"
-          },
-          "commonTags": {
-            "value": "[variables('commonTags')]"
-          },
-          "schoolName": {
-            "value": "[parameters('schoolName')]"
-          },
-          "maxVmsPerStudent": {
-            "value": "[parameters('maxVmsPerStudent')]"
-          },
-          "autoShutdownHours": {
-            "value": "[parameters('autoShutdownHours')]"
-          },
-          "dailyCostLimitPerStudent": {
-            "value": "[parameters('dailyCostLimitPerStudent')]"
-          },
-          "numberOfStudents": {
-            "value": "[parameters('numberOfStudents')]"
-          }
-        },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
           "contentVersion": "1.0.0.0",
@@ -140,9 +102,6 @@
               "type": "string"
             },
             "maxVmsPerStudent": {
-              "type": "int"
-            },
-            "autoShutdownHours": {
               "type": "int"
             },
             "dailyCostLimitPerStudent": {
@@ -170,7 +129,7 @@
                 "environmentPermission": "Reader",
                 "announcement": {
                   "title": "[format('Velkommen til {0} DevTest Lab', parameters('schoolName'))]",
-                  "markdown": "[format('## Viktige regler\\n\\n- Maksimalt {0} VM-er per elev\\n- Daglig budsjett: {1} NOK\\n- VM-er slås av automatisk etter {2} timer\\n- Kun godkjente VM-images kan brukes\\n\\n**Husk å slå av VM-ene dine når du er ferdig!**', parameters('maxVmsPerStudent'), parameters('dailyCostLimitPerStudent'), parameters('autoShutdownHours'))]",
+                  "markdown": "[format('## Viktige regler\\n\\n- Maksimalt {0} VM-er per elev\\n- Daglig budsjett: {1} NOK\\n- VM-er slås av automatisk etter 2 timer\\n- Kun godkjente VM-images kan brukes\\n\\n**Husk å slå av VM-ene dine når du er ferdig!**', parameters('maxVmsPerStudent'), parameters('dailyCostLimitPerStudent'))]",
                   "enabled": "Enabled",
                   "expirationDate": "[dateTimeAdd(variables('deploymentTime'), 'P6M')]"
                 }
@@ -201,12 +160,6 @@
                 "[resourceId('Microsoft.DevTestLab/labs', parameters('labName'))]"
               ]
             },
-            {
-              "type": "Microsoft.DevTestLab/labs/schedules",
-              "apiVersion": "2018-09-15",
-              "name": "[format('{0}/LabVmsShutdown', parameters('labName'))]",
-              "properties": {
-                "status": "Enabled",
             {
               "type": "Microsoft.DevTestLab/labs/schedules",
               "apiVersion": "2018-09-15",
@@ -255,6 +208,34 @@
               "dependsOn": [
                 "[resourceId('Microsoft.DevTestLab/labs', parameters('labName'))]"
               ]
+            },
+            {
+              "type": "Microsoft.DevTestLab/labs/policysets/policies",
+              "apiVersion": "2018-09-15",
+              "name": "[format('{0}/default/MaxVmsAllowedPerUser', parameters('labName'))]",
+              "properties": {
+                "factName": "UserOwnedLabVmCount",
+                "threshold": "[string(parameters('maxVmsPerStudent'))]",
+                "evaluatorType": "MaxValuePolicy",
+                "status": "Enabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DevTestLab/labs', parameters('labName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DevTestLab/labs/policysets/policies",
+              "apiVersion": "2018-09-15",
+              "name": "[format('{0}/default/AllowedVmSizesInLab', parameters('labName'))]",
+              "properties": {
+                "factName": "LabVmSize",
+                "threshold": "[concat('[\"Standard_B1s\",\"Standard_B2s\",\"Standard_B1ms\",\"Standard_B2ms\"]')]",
+                "evaluatorType": "AllowedValuesPolicy",
+                "status": "Enabled"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DevTestLab/labs', parameters('labName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -269,102 +250,30 @@
             "labLocation": {
               "type": "string",
               "value": "[parameters('location')]"
-            },
-            "labVirtualNetworkId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.DevTestLab/labs/virtualnetworks', parameters('labName'), format('dtl{0}', parameters('labName')))]"
             }
           }
-        }
-      },
-      "dependsOn": [
-        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', variables('resourceGroupName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "student-role-deployment",
-      "resourceGroup": "[variables('resourceGroupName')]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
         },
-        "mode": "Incremental",
         "parameters": {
+          "labName": {
+            "value": "[variables('labName')]"
+          },
+          "location": {
+            "value": "[variables('labLocation')]"
+          },
+          "commonTags": {
+            "value": "[variables('commonTags')]"
+          },
           "schoolName": {
             "value": "[parameters('schoolName')]"
           },
-          "labName": {
-            "value": "[variables('labName')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "schoolName": {
-              "type": "string"
-            },
-            "labName": {
-              "type": "string"
-            }
+          "maxVmsPerStudent": {
+            "value": "[parameters('maxVmsPerStudent')]"
           },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleDefinitions",
-              "apiVersion": "2022-05-01-preview",
-              "name": "[guid(format('student-role-{0}', parameters('labName')))]",
-              "properties": {
-                "roleName": "[format('DevTest Labs Student - {0}', parameters('schoolName'))]",
-                "description": "Begrenset tilgang for elever i DevTest Labs",
-                "type": "CustomRole",
-                "permissions": [
-                  {
-                    "actions": [
-                      "Microsoft.DevTestLab/labs/virtualMachines/read",
-                      "Microsoft.DevTestLab/labs/virtualMachines/write",
-                      "Microsoft.DevTestLab/labs/virtualMachines/delete",
-                      "Microsoft.DevTestLab/labs/virtualMachines/start/action",
-                      "Microsoft.DevTestLab/labs/virtualMachines/stop/action",
-                      "Microsoft.DevTestLab/labs/virtualMachines/restart/action",
-                      "Microsoft.DevTestLab/labs/virtualMachines/applyArtifacts/action",
-                      "Microsoft.DevTestLab/labs/virtualMachines/getRdpFileContents/action",
-                      "Microsoft.DevTestLab/labs/virtualMachines/getSshFileContents/action",
-                      "Microsoft.DevTestLab/labs/read",
-                      "Microsoft.DevTestLab/labs/costs/read",
-                      "Microsoft.DevTestLab/labs/formulas/read",
-                      "Microsoft.DevTestLab/labs/galleryImages/read",
-                      "Microsoft.DevTestLab/labs/policysets/policies/read",
-                      "Microsoft.Resources/subscriptions/resourceGroups/read"
-                    ],
-                    "notActions": [
-                      "Microsoft.DevTestLab/labs/delete",
-                      "Microsoft.DevTestLab/labs/write",
-                      "Microsoft.DevTestLab/labs/policysets/policies/write",
-                      "Microsoft.DevTestLab/labs/policysets/policies/delete",
-                      "Microsoft.DevTestLab/labs/schedules/write",
-                      "Microsoft.DevTestLab/labs/schedules/delete"
-                    ],
-                    "dataActions": [],
-                    "notDataActions": []
-                  }
-                ],
-                "assignableScopes": [
-                  "[resourceGroup().id]"
-                ]
-              }
-            }
-          ],
-          "outputs": {
-            "roleDefinitionId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Authorization/roleDefinitions', guid(format('student-role-{0}', parameters('labName'))))]"
-            },
-            "roleName": {
-              "type": "string",
-              "value": "[format('DevTest Labs Student - {0}', parameters('schoolName'))]"
-            }
+          "dailyCostLimitPerStudent": {
+            "value": "[parameters('dailyCostLimitPerStudent')]"
+          },
+          "numberOfStudents": {
+            "value": "[parameters('numberOfStudents')]"
           }
         }
       },
@@ -389,14 +298,6 @@
     "labUrl": {
       "type": "string",
       "value": "[format('https://portal.azure.com/#@/resource{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'devtest-lab-deployment'), '2022-09-01').outputs.labResourceId.value)]"
-    },
-    "studentRoleId": {
-      "type": "string",
-      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('resourceGroupName')), 'Microsoft.Resources/deployments', 'student-role-deployment'), '2022-09-01').outputs.roleDefinitionId.value]"
-    },
-    "costManagementUrl": {
-      "type": "string",
-      "value": "https://portal.azure.com/#@/blade/Microsoft_Azure_CostManagement/Menu/overview"
     },
     "teacherInstructions": {
       "type": "object",
