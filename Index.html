@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure DevTest Labs for Skolebruk</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0078d4;
+            --secondary-color: #106ebe;
+            --accent-color: #005a9e;
+            --success-color: #107c10;
+            --warning-color: #ff8c00;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 80px 0;
+        }
+        
+        .feature-card {
+            transition: transform 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .deploy-button {
+            background: var(--success-color);
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .deploy-button:hover {
+            background: #0e6b0e;
+            transform: scale(1.05);
+        }
+        
+        .step-number {
+            background: var(--primary-color);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .cost-highlight {
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            border-left: 4px solid var(--warning-color);
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .requirement-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">
+                <i class="fas fa-graduation-cap me-2"></i>
+                DevTest Labs for Skole
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">Funksjoner</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#requirements">Krav</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#deploy">Deploy</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#guide">Veiledning</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-4">
+                        🎓 Azure DevTest Labs for Skolebruk
+                    </h1>
+                    <p class="lead mb-4">
+                        Sett opp et komplett lab-miljø for dine elever på under 15 minutter. 
+                        Med automatisk kostnadskontroll, sikkerhet og VM-administrasjon.
+                    </p>
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        <span class="badge bg-light text-dark p-2">
+                            <i class="fas fa-users me-1"></i> Opptil 30 elever
+                        </span>
+                        <span class="badge bg-light text-dark p-2">
+                            <i class="fas fa-shield-alt me-1"></i> Sikker tilgang
+                        </span>
+                        <span class="badge bg-light text-dark p-2">
+                            <i class="fas fa-money-bill-wave me-1"></i> Kostnadskontroll
+                        </span>
+                        <span class="badge bg-light text-dark p-2">
+                            <i class="fas fa-clock me-1"></i> Auto-shutdown
+                        </span>
+                    </div>
+                    <a href="#deploy" class="btn deploy-button btn-lg">
+                        <i class="fas fa-rocket me-2"></i>
+                        Deploy til Azure nå
+                    </a>
+                </div>
+                <div class="col-lg-6">
+                    <img src="https://docs.microsoft.com/en-us/azure/devtest-labs/media/devtest-lab-overview/overview.png" 
+                         alt="DevTest Labs Overview" class="img-fluid rounded shadow">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">🎯 Hovedfunksjoner</h2>
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-money-bill-wave fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title">Kostnadskontroll</h5>
+                            <p class="card-text">
+                                Automatisk budsjettgrenser per elev med varsler ved 50%, 80% og 100% av budsjett.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
+                            <h5 class="card-title">Sikkerhet</h5>
+                            <p class="card-text">
+                                Rollebasert tilgang hvor elever kun ser sine egne VM-er og ressurser.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-clock fa-3x text-warning mb-3"></i>
+                            <h5 class="card-title">Auto-administrasjon</h5>
+                            <p class="card-text">
+                                VM-er starter automatisk kl. 08:00 og slås av kl. 22:00 for å spare kostnader.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-users fa-3x text-info mb-3"></i>
+                            <h5 class="card-title">Brukerhåndtering</h5>
+                            <p class="card-text">
+                                Automatisk opprettelse av studentkontoer med begrensede rettigheter.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Requirements Section -->
+    <section id="requirements" class="py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-5">📋 Krav og forutsetninger</h2>
+            <div class="row">
+                <div class="col-lg-6">
+                    <h4 class="mb-3"><i class="fas fa-cloud me-2 text-primary"></i>Azure-tilgang</h4>
+                    <div class="requirement-item">
+                        <strong><i class="fas fa-check-circle text-success me-2"></i>Azure-subscription</strong><br>
+                        Med Contributor eller Owner-rolle
+                    </div>
+                    <div class="requirement-item">
+                        <strong><i class="fas fa-check-circle text-success me-2"></i>Azure AD-tilgang</strong><br>
+                        Global Administrator eller User Administrator
+                    </div>
+                    <div class="requirement-item">
+                        <strong><i class="fas fa-check-circle text-success me-2"></i>VM-kvoter</strong><br>
+                        Minimum 52 vCPUs i Norway East regionen
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <h4 class="mb-3"><i class="fas fa-calculator me-2 text-warning"></i>Budsjett</h4>
+                    <div class="cost-highlight">
+                        <h5><i class="fas fa-coins me-2"></i>Kostnadskalkulator</h5>
+                        <div class="row mt-3">
+                            <div class="col-6">
+                                <label for="students" class="form-label">Antall elever:</label>
+                                <input type="number" class="form-control" id="students" value="26" min="1" max="30">
+                            </div>
+                            <div class="col-6">
+                                <label for="dailyCost" class="form-label">NOK per dag per elev:</label>
+                                <input type="number" class="form-control" id="dailyCost" value="75" min="25" max="200">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <strong>Månedlig kostnad: <span id="monthlyCost" class="text-primary">58,500</span> NOK</strong><br>
+                            <small class="text-muted">Semester (4 mnd): <span id="semesterCost">234,000</span> NOK</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Deploy Section -->
+    <section id="deploy" class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">🚀 Deploy til Azure</h2>
+            
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card shadow">
+                        <div class="card-body p-4">
+                            <div class="text-center mb-4">
+                                <h4><i class="fas fa-magic me-2 text-primary"></i>1-klikk deployment</h4>
+                                <p class="text-muted">Klikk knappen under for å starte deployment-prosessen i Azure Portal</p>
+                            </div>
+                            
+                            <div class="text-center mb-4">
+                                <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FHindsight1337%2FDevlabs%2Fmain%2Fazuredeploy.json" 
+                                   target="_blank" 
+                                   class="btn deploy-button btn-lg">
+                                    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" style="height: 40px;">
+                                </a>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Viktig:</strong> Du må være logget inn på Azure Portal med administrator-rettigheter før du klikker deploy-knappen.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Guide Section -->
+    <section id="guide" class="py-5 bg-light">
+        <div class="container">
+            <h2 class="text-center mb-5">📖 Steg-for-steg veiledning</h2>
+            
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="d-flex align-items-start mb-4">
+                        <div class="step-number">1</div>
+                        <div>
+                            <h5>Logg inn på Azure Portal</h5>
+                            <p>Gå til <a href="https://portal.azure.com" target="_blank">portal.azure.com</a> og logg inn med din administrator-konto.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-start mb-4">
+                        <div class="step-number">2</div>
+                        <div>
+                            <h5>Klikk "Deploy to Azure"</h5>
+                            <p>Klikk på deploy-knappen over. Du vil bli sendt til Azure Portal sin deployment-side.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-start mb-4">
+                        <div class="step-number">3</div>
+                        <div>
+                            <h5>Fyll ut parametere</h5>
+                            <p>Fyll ut skjemaet med informasjon om din skole:</p>
+                            <ul>
+                                <li><strong>School Name:</strong> Navn på skolen (eks: "IKTAgder")</li>
+                                <li><strong>Cohort ID:</strong> Kull/semester (eks: "H2025")</li>
+                                <li><strong>Number of Students:</strong> Antall elever (1-30)</li>
+                                <li><strong>Daily Cost Limit:</strong> Daglig budsjett per elev</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-start mb-4">
+                        <div class="step-number">4</div>
+                        <div>
+                            <h5>Start deployment</h5>
+                            <p>Klikk "Review + create" og deretter "Create". Deployment tar ca. 10-15 minutter.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex align-items-start mb-4">
+                        <div class="step-number">5</div>
+                        <div>
+                            <h5>Kjør post-deployment script</h5>
+                            <p>Last ned og kjør post-deployment PowerShell-scriptet for å konfigurere avanserte policyer.</p>
+                            <a href="https://raw.githubusercontent.com/Hindsight1337/Devlabs/main/post-deployment-config.ps1" 
+                               class="btn btn-outline-primary btn-sm" download>
+                                <i class="fas fa-download me-1"></i> Last ned script
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Support Section -->
+    <section class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">🆘 Support og ressurser</h2>
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fab fa-github fa-3x text-dark mb-3"></i>
+                            <h5>GitHub Repository</h5>
+                            <p>Se kildekode, rapporter issues og bidra til prosjektet.</p>
+                            <a href="https://github.com/Hindsight1337/Devlabs" class="btn btn-outline-dark">
+                                <i class="fab fa-github me-2"></i>GitHub
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-book fa-3x text-primary mb-3"></i>
+                            <h5>Dokumentasjon</h5>
+                            <p>Fullstendig dokumentasjon og troubleshooting guide.</p>
+                            <a href="https://github.com/Hindsight1337/Devlabs/blob/main/README.md" class="btn btn-outline-primary">
+                                <i class="fas fa-book me-2"></i>Les dokumentasjon
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-life-ring fa-3x text-success mb-3"></i>
+                            <h5>Azure Support</h5>
+                            <p>Offisiell Microsoft Azure support og dokumentasjon.</p>
+                            <a href="https://docs.microsoft.com/azure/devtest-labs/" class="btn btn-outline-success">
+                                <i class="fas fa-external-link-alt me-2"></i>Azure Docs
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light py-4">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5><i class="fas fa-graduation-cap me-2"></i>DevTest Labs for Skole</h5>
+                    <p class="text-muted">Infrastructure as Code løsning for utdanningsinstitusjoner.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-muted">
+                        Laget med <i class="fas fa-heart text-danger"></i> for norske skoler<br>
+                        <small>Sist oppdatert: Juni 2025</small>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Cost calculator
+        function updateCost() {
+            const students = document.getElementById('students').value;
+            const dailyCost = document.getElementById('dailyCost').value;
+            const monthly = students * dailyCost * 30;
+            const semester = monthly * 4;
+            
+            document.getElementById('monthlyCost').textContent = monthly.toLocaleString('no-NO');
+            document.getElementById('semesterCost').textContent = semester.toLocaleString('no-NO');
+        }
+        
+        document.getElementById('students').addEventListener('input', updateCost);
+        document.getElementById('dailyCost').addEventListener('input', updateCost);
+        
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
