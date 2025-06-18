@@ -86,7 +86,8 @@ catch {
 Write-Host "Verifying DevTest Lab..." -ForegroundColor Yellow
 
 try {
-    $lab = az lab show --resource-group $ResourceGroupName --name $LabName --output json 2>$null | ConvertFrom-Json
+    # Use generic resource command instead of lab-specific command
+    $lab = az resource show --resource-group $ResourceGroupName --name $LabName --resource-type "Microsoft.DevTestLab/labs" --output json 2>$null | ConvertFrom-Json
     if (!$lab) {
         throw "Lab not found"
     }
@@ -95,8 +96,21 @@ try {
 }
 catch {
     Write-Host "ERROR: DevTest Lab '$LabName' not found in resource group '$ResourceGroupName'!" -ForegroundColor Red
-    Write-Host "Available labs in resource group:" -ForegroundColor White
-    az lab list --resource-group $ResourceGroupName --query "[].name" --output table
+    Write-Host "Available DevTest Labs in resource group:" -ForegroundColor White
+    
+    # List all DevTest Labs in the resource group
+    try {
+        $labs = az resource list --resource-group $ResourceGroupName --resource-type "Microsoft.DevTestLab/labs" --query "[].name" --output tsv 2>$null
+        if ($labs) {
+            $labs.Split("`n") | Where-Object { $_.Trim() -ne "" } | ForEach-Object { Write-Host "  - $_" -ForegroundColor White }
+        }
+        else {
+            Write-Host "  No DevTest Labs found in this resource group" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "  Could not list DevTest Labs" -ForegroundColor Yellow
+    }
     exit 1
 }
 
@@ -104,20 +118,21 @@ catch {
 Write-Host "Getting virtual network information..." -ForegroundColor Yellow
 
 try {
-    $vnets = az lab vnet list --resource-group $ResourceGroupName --lab-name $LabName --output json | ConvertFrom-Json
+    # Get virtual networks using resource command
+    $vnets = az resource list --resource-group $ResourceGroupName --resource-type "Microsoft.DevTestLab/labs/virtualnetworks" --output json 2>$null | ConvertFrom-Json
     if ($vnets -and $vnets.Count -gt 0) {
-        $vnetName = $vnets[0].name
+        $vnetName = ($vnets[0].name -split "/")[-1]
         $subnetName = "default"
         Write-Host "SUCCESS: Found virtual network '$vnetName'" -ForegroundColor Green
     }
     else {
-        Write-Host "WARNING: No virtual networks found, using defaults" -ForegroundColor Yellow
+        Write-Host "INFO: Using default virtual network configuration" -ForegroundColor Yellow
         $vnetName = $LabName
         $subnetName = "default"
     }
 }
 catch {
-    Write-Host "WARNING: Could not retrieve virtual network info, using defaults" -ForegroundColor Yellow
+    Write-Host "INFO: Using default virtual network configuration" -ForegroundColor Yellow
     $vnetName = $LabName
     $subnetName = "default"
 }
@@ -166,12 +181,10 @@ $windowsFormula = @{
 $windowsFormula | ConvertTo-Json -Depth 10 | Out-File -FilePath $windowsFormulaFile -Encoding UTF8
 
 try {
-    $result = az lab formula create `
-        --resource-group $ResourceGroupName `
-        --lab-name $LabName `
-        --name "Windows11-Student" `
-        --formula-content "@$windowsFormulaFile" `
-        --output json 2>$null
+    # Use REST API call via az rest instead of deprecated lab formula commands
+    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/Windows11-Student?api-version=2018-09-15"
+    
+    $result = az rest --method PUT --uri $createFormulaUri --body "@$windowsFormulaFile" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  SUCCESS: Windows11-Student formula created" -ForegroundColor Green
@@ -220,12 +233,10 @@ $ubuntuFormula = @{
 $ubuntuFormula | ConvertTo-Json -Depth 10 | Out-File -FilePath $ubuntuFormulaFile -Encoding UTF8
 
 try {
-    $result = az lab formula create `
-        --resource-group $ResourceGroupName `
-        --lab-name $LabName `
-        --name "Ubuntu-Student" `
-        --formula-content "@$ubuntuFormulaFile" `
-        --output json 2>$null
+    # Use REST API call via az rest for Ubuntu formula
+    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/Ubuntu-Student?api-version=2018-09-15"
+    
+    $result = az rest --method PUT --uri $createFormulaUri --body "@$ubuntuFormulaFile" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  SUCCESS: Ubuntu-Student formula created" -ForegroundColor Green
@@ -250,13 +261,8 @@ Write-Host "Configuring Lab Policies..." -ForegroundColor Cyan
 Write-Host "  Checking VM count policy..." -ForegroundColor Yellow
 
 try {
-    $vmCountPolicy = az lab policy show `
-        --resource-group $ResourceGroupName `
-        --lab-name $LabName `
-        --policy-set-name "default" `
-        --name "MaxVmsAllowedPerUser" `
-        --query threshold `
-        --output tsv 2>$null
+    $policyUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/policysets/default/policies/MaxVmsAllowedPerUser?api-version=2018-09-15"
+    $vmCountPolicy = az rest --method GET --uri $policyUri --query properties.threshold --output tsv 2>$null
 
     if ($vmCountPolicy -eq $MaxVmsPerStudent.ToString()) {
         Write-Host "  SUCCESS: VM count policy correctly set to $MaxVmsPerStudent" -ForegroundColor Green
@@ -264,15 +270,22 @@ try {
     else {
         Write-Host "  INFO: VM count policy is $vmCountPolicy, expected $MaxVmsPerStudent" -ForegroundColor Yellow
         
-        # Try to update the policy
+        # Try to update the policy using REST API
+        $updatePolicyBody = @{
+            properties = @{
+                factName = "UserOwnedLabVmCount"
+                threshold = $MaxVmsPerStudent.ToString()
+                evaluatorType = "MaxValuePolicy"
+                status = "Enabled"
+            }
+        } | ConvertTo-Json -Depth 5
+        
+        $tempPolicyFile = Join-Path $tempDir "vm-count-policy.json"
+        $updatePolicyBody | Out-File -FilePath $tempPolicyFile -Encoding UTF8
+        
         try {
-            az lab policy set `
-                --resource-group $ResourceGroupName `
-                --lab-name $LabName `
-                --policy-set-name "default" `
-                --name "MaxVmsAllowedPerUser" `
-                --threshold $MaxVmsPerStudent `
-                --output none 2>$null
+            az rest --method PUT --uri $policyUri --body "@$tempPolicyFile" --output none 2>$null
+            Remove-Item -Path $tempPolicyFile -Force -ErrorAction SilentlyContinue
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  SUCCESS: VM count policy updated to $MaxVmsPerStudent" -ForegroundColor Green
@@ -291,13 +304,8 @@ catch {
 Write-Host "  Checking VM size policy..." -ForegroundColor Yellow
 
 try {
-    $vmSizePolicy = az lab policy show `
-        --resource-group $ResourceGroupName `
-        --lab-name $LabName `
-        --policy-set-name "default" `
-        --name "AllowedVmSizesInLab" `
-        --query status `
-        --output tsv 2>$null
+    $vmSizePolicyUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/policysets/default/policies/AllowedVmSizesInLab?api-version=2018-09-15"
+    $vmSizePolicy = az rest --method GET --uri $vmSizePolicyUri --query properties.status --output tsv 2>$null
 
     if ($vmSizePolicy -eq "Enabled") {
         Write-Host "  SUCCESS: VM size policy is enabled" -ForegroundColor Green
@@ -314,14 +322,11 @@ catch {
 Write-Host "  Checking auto-shutdown schedule..." -ForegroundColor Yellow
 
 try {
-    $shutdownSchedule = az lab schedule show `
-        --resource-group $ResourceGroupName `
-        --lab-name $LabName `
-        --name "LabVmsShutdown" `
-        --output json 2>$null | ConvertFrom-Json
+    $scheduleUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/schedules/LabVmsShutdown?api-version=2018-09-15"
+    $shutdownSchedule = az rest --method GET --uri $scheduleUri --output json 2>$null | ConvertFrom-Json
 
-    if ($shutdownSchedule -and $shutdownSchedule.status -eq "Enabled") {
-        $shutdownTime = $shutdownSchedule.dailyRecurrence.time
+    if ($shutdownSchedule -and $shutdownSchedule.properties.status -eq "Enabled") {
+        $shutdownTime = $shutdownSchedule.properties.dailyRecurrence.time
         Write-Host "  SUCCESS: Auto-shutdown enabled at $shutdownTime" -ForegroundColor Green
     }
     else {
@@ -337,7 +342,8 @@ Write-Host ""
 Write-Host "Verifying created formulas..." -ForegroundColor Cyan
 
 try {
-    $formulas = az lab formula list --resource-group $ResourceGroupName --lab-name $LabName --output json | ConvertFrom-Json
+    $formulasUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas?api-version=2018-09-15"
+    $formulas = az rest --method GET --uri $formulasUri --query value --output json 2>$null | ConvertFrom-Json
     
     if ($formulas -and $formulas.Count -gt 0) {
         Write-Host "Available formulas:" -ForegroundColor White
@@ -346,7 +352,7 @@ try {
         }
     }
     else {
-        Write-Host "  No formulas found" -ForegroundColor Yellow
+        Write-Host "  No formulas found yet - they may take a moment to appear" -ForegroundColor Yellow
     }
 }
 catch {
