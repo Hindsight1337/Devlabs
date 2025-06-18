@@ -109,10 +109,6 @@
             },
             "numberOfStudents": {
               "type": "int"
-            },
-            "deploymentTime": {
-              "type": "string",
-              "defaultValue": "[utcNow()]"
             }
           },
           "variables": {},
@@ -132,8 +128,7 @@
                 "announcement": {
                   "title": "[format('Velkommen til {0} DevTest Lab', parameters('schoolName'))]",
                   "markdown": "[format('## Viktige regler\\n\\n- Maksimalt {0} VM-er per elev\\n- Daglig budsjett: {1} NOK\\n- VM-er slås av automatisk etter 2 timer\\n- Kun godkjente VM-images kan brukes\\n\\n**Husk å slå av VM-ene dine når du er ferdig!**', parameters('maxVmsPerStudent'), parameters('dailyCostLimitPerStudent'))]",
-                  "enabled": "Enabled",
-                  "expirationDate": "[dateTimeAdd(parameters('deploymentTime'), 'P6M')]"
+                  "enabled": "Enabled"
                 }
               }
             },
@@ -276,9 +271,6 @@
           },
           "numberOfStudents": {
             "value": "[parameters('numberOfStudents')]"
-          },
-          "deploymentTime": {
-            "value": "[utcNow()]"
           }
         }
       },
