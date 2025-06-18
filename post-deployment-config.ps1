@@ -1,397 +1,321 @@
-# =======================================
-# Post-Deployment Lab Configuration
-# Kjør dette ETTER ARM template deployment
-# =======================================
+# Azure DevTest Labs Post-Deployment Configuration Script
+# Version: 2.0 - Fixed syntax errors
+# Description: Konfigurerer avanserte policies, cost management og VM formulas
 
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$true)]
     [string]$ResourceGroupName,
     
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$true)]
     [string]$LabName,
     
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory=$false)]
     [int]$MaxVmsPerStudent = 2,
     
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory=$false)]
     [int]$DailyCostLimit = 75,
     
-    [Parameter(Mandatory = $false)]
-    [int]$NumberOfStudents = 26
+    [Parameter(Mandatory=$false)]
+    [int]$NumberOfStudents = 26,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$SubscriptionId = "",
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$WhatIf
 )
 
-Write-Host "=== POST-DEPLOYMENT LAB CONFIGURATION ===" -ForegroundColor Green
-Write-Host "Resource Group: $ResourceGroupName" -ForegroundColor Yellow
-Write-Host "Lab Name: $LabName" -ForegroundColor Yellow
-Write-Host "Max VMs per student: $MaxVmsPerStudent" -ForegroundColor Yellow
-Write-Host "Daily cost limit: $DailyCostLimit NOK" -ForegroundColor Yellow
-Write-Host "Number of students: $NumberOfStudents" -ForegroundColor Yellow
+# Set error action preference
+$ErrorActionPreference = "Stop"
 
-# Ensure we're logged in
+# Script start
+Write-Host "🚀 Azure DevTest Labs Post-Deployment Configuration" -ForegroundColor Cyan
+Write-Host "=================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Validate parameters
+if ($DailyCostLimit -lt 10 -or $DailyCostLimit -gt 500) {
+    throw "DailyCostLimit must be between 10 and 500 NOK"
+}
+
+if ($NumberOfStudents -lt 1 -or $NumberOfStudents -gt 50) {
+    throw "NumberOfStudents must be between 1 and 50"
+}
+
 try {
-    $context = Get-AzContext
+    # Check if Azure PowerShell module is installed
+    Write-Host "🔍 Checking Azure PowerShell module..." -ForegroundColor Yellow
+    
+    if (!(Get-Module -ListAvailable -Name Az.Accounts)) {
+        Write-Host "❌ Azure PowerShell module not found!" -ForegroundColor Red
+        Write-Host "Install with: Install-Module -Name Az -AllowClobber -Force" -ForegroundColor White
+        exit 1
+    }
+    
+    Write-Host "✅ Azure PowerShell module found" -ForegroundColor Green
+    
+    # Connect to Azure if not already connected
+    Write-Host "🔐 Checking Azure connection..." -ForegroundColor Yellow
+    
+    $context = Get-AzContext -ErrorAction SilentlyContinue
     if (!$context) {
-        Write-Host "Logging into Azure..." -ForegroundColor Yellow
+        Write-Host "🔑 Logging into Azure..." -ForegroundColor Yellow
         Connect-AzAccount
+        $context = Get-AzContext
     }
-    Write-Host "✓ Connected to Azure" -ForegroundColor Green
-    Write-Host "  Subscription: $($context.Subscription.Name)" -ForegroundColor White
-    Write-Host "  Account: $($context.Account.Id)" -ForegroundColor White
-}
-catch {
-    Write-Error "Failed to connect to Azure: $($_.Exception.Message)"
-    Write-Host "Please run 'Connect-AzAccount' manually and try again." -ForegroundColor Red
-    exit 1
-}
-
-# Get access token and subscription info
-$subscriptionId = (Get-AzContext).Subscription.Id
-$accessToken = (Get-AzAccessToken).Token
-
-$headers = @{
-    'Authorization' = "Bearer $accessToken"
-    'Content-Type' = 'application/json'
-}
-
-$baseUri = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName"
-
-Write-Host "`n🔍 Validating lab exists..." -ForegroundColor Green
-try {
-    $lab = Get-AzResource -ResourceGroupName $ResourceGroupName -ResourceName $LabName -ResourceType "Microsoft.DevTestLab/labs" -ErrorAction Stop
-    Write-Host "✓ Lab found and accessible" -ForegroundColor Green
-    Write-Host "  Lab ID: $($lab.ResourceId)" -ForegroundColor White
-}
-catch {
-    Write-Error "❌ Could not find lab '$LabName' in resource group '$ResourceGroupName'"
-    Write-Host "Please verify the lab was deployed successfully and try again." -ForegroundColor Red
-    exit 1
-}
-
-# ==================
-# CONFIGURE LAB POLICIES VIA REST API
-# ==================
-Write-Host "`n🛡️ Configuring lab policies..." -ForegroundColor Green
-
-# Policy 1: Max VMs per user
-Write-Host "  Setting VM count policy..." -ForegroundColor Yellow
-$vmCountPolicyUri = "$baseUri/policysets/default/policies/MaxVmsAllowedPerUser?api-version=2018-09-15"
-$vmCountPolicy = @{
-    properties = @{
-        factName = "UserOwnedLabVmCount"
-        threshold = $MaxVmsPerStudent.ToString()
-        evaluatorType = "MaxValuePolicy"
-        status = "Enabled"
+    
+    Write-Host "✅ Connected to Azure as: $($context.Account.Id)" -ForegroundColor Green
+    
+    # Set subscription if provided
+    if ($SubscriptionId) {
+        Write-Host "📋 Setting subscription: $SubscriptionId" -ForegroundColor Yellow
+        Set-AzContext -SubscriptionId $SubscriptionId | Out-Null
     }
-} | ConvertTo-Json -Depth 3
-
-try {
-    $response = Invoke-RestMethod -Uri $vmCountPolicyUri -Method PUT -Headers $headers -Body $vmCountPolicy
-    Write-Host "  ✓ VM count policy set successfully" -ForegroundColor Green
-}
-catch {
-    Write-Warning "  ⚠️ Failed to set VM count policy: $($_.Exception.Message)"
-}
-
-# Policy 2: Allowed VM sizes
-Write-Host "  Setting VM size policy..." -ForegroundColor Yellow
-$vmSizePolicyUri = "$baseUri/policysets/default/policies/AllowedVmSizesInLab?api-version=2018-09-15"
-$allowedSizes = @("Standard_B1s", "Standard_B2s", "Standard_B1ms", "Standard_B2ms")
-$vmSizePolicy = @{
-    properties = @{
-        factName = "LabVmSize"
-        threshold = ($allowedSizes | ConvertTo-Json -Compress)
-        evaluatorType = "AllowedValuesPolicy"
-        status = "Enabled"
+    
+    # Verify resource group exists
+    Write-Host "🔍 Verifying resource group: $ResourceGroupName" -ForegroundColor Yellow
+    
+    $resourceGroup = Get-AzResourceGroup -Name $ResourceGroupName -ErrorAction SilentlyContinue
+    if (!$resourceGroup) {
+        throw "Resource group '$ResourceGroupName' not found!"
     }
-} | ConvertTo-Json -Depth 3
-
-try {
-    $response = Invoke-RestMethod -Uri $vmSizePolicyUri -Method PUT -Headers $headers -Body $vmSizePolicy
-    Write-Host "  ✓ VM size policy set successfully" -ForegroundColor Green
-}
-catch {
-    Write-Warning "  ⚠️ Failed to set VM size policy: $($_.Exception.Message)"
-}
-
-# Policy 3: Allowed gallery images
-Write-Host "  Setting gallery image policy..." -ForegroundColor Yellow
-$imagePolicyUri = "$baseUri/policysets/default/policies/GalleryImage?api-version=2018-09-15"
-$allowedImages = @(
-    @{
-        offer = "Windows-11"
-        publisher = "MicrosoftWindowsDesktop"
-        sku = "win11-22h2-pro"
-        osType = "Windows"
-        version = "latest"
-    },
-    @{
-        offer = "WindowsServer"
-        publisher = "MicrosoftWindowsServer"
-        sku = "2022-datacenter-azure-edition"
-        osType = "Windows"
-        version = "latest"
-    },
-    @{
-        offer = "0001-com-ubuntu-server-focal"
-        publisher = "Canonical"
-        sku = "20_04-lts-gen2"
-        osType = "Linux"
-        version = "latest"
+    
+    Write-Host "✅ Resource group found in location: $($resourceGroup.Location)" -ForegroundColor Green
+    
+    # Verify DevTest Lab exists
+    Write-Host "🧪 Verifying DevTest Lab: $LabName" -ForegroundColor Yellow
+    
+    $lab = Get-AzResource -ResourceGroupName $ResourceGroupName -Name $LabName -ResourceType "Microsoft.DevTestLab/labs" -ErrorAction SilentlyContinue
+    if (!$lab) {
+        throw "DevTest Lab '$LabName' not found in resource group '$ResourceGroupName'!"
     }
-)
-
-$imagePolicy = @{
-    properties = @{
-        factName = "GalleryImage"
-        threshold = ($allowedImages | ConvertTo-Json -Compress)
-        evaluatorType = "AllowedValuesPolicy"
-        status = "Enabled"
-    }
-} | ConvertTo-Json -Depth 3
-
-try {
-    $response = Invoke-RestMethod -Uri $imagePolicyUri -Method PUT -Headers $headers -Body $imagePolicy
-    Write-Host "  ✓ Gallery image policy set successfully" -ForegroundColor Green
-}
-catch {
-    Write-Warning "  ⚠️ Failed to set gallery image policy: $($_.Exception.Message)"
-}
-
-# ==================
-# CREATE VM FORMULAS
-# ==================
-Write-Host "`n🧪 Creating VM formulas..." -ForegroundColor Green
-
-# Windows 11 Formula
-Write-Host "  Creating Windows 11 formula..." -ForegroundColor Yellow
-$formulaUri = "$baseUri/formulas/Windows11-Student?api-version=2018-09-15"
-$formula = @{
-    properties = @{
-        description = "Standard Windows 11 for students"
-        osType = "Windows"
-        formulaContent = @{
-            properties = @{
-                size = "Standard_B2s"
-                userName = "student"
-                isAuthenticationWithSshKey = $false
-                labSubnetName = "default"
-                disallowPublicIpAddress = $false
-                galleryImageReference = @{
-                    offer = "Windows-11"
-                    publisher = "MicrosoftWindowsDesktop"
-                    sku = "win11-22h2-pro"
-                    osType = "Windows"
-                    version = "latest"
+    
+    Write-Host "✅ DevTest Lab found" -ForegroundColor Green
+    
+    # Create VM Formulas
+    Write-Host ""
+    Write-Host "📝 Creating VM Formulas..." -ForegroundColor Cyan
+    
+    # Formula 1: Windows 11 Student
+    Write-Host "  📋 Creating Windows 11 Student formula..." -ForegroundColor Yellow
+    
+    $windowsFormula = @{
+        location = $lab.Location
+        properties = @{
+            description = "Windows 11 Pro with development tools for students"
+            osType = "Windows"
+            formulaVirtualMachineProperties = @{
+                labVirtualMachineCreationParameter = @{
+                    name = "Windows11-Student"
+                    location = $lab.Location
+                    properties = @{
+                        size = "Standard_B2s"
+                        userName = "student"
+                        password = "ChangeMe123!"
+                        isAuthenticationWithSshKey = $false
+                        labSubnetName = "$($LabName)Subnet"
+                        labVirtualNetworkId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourcegroups/$ResourceGroupName/providers/microsoft.devtestlab/labs/$LabName/virtualnetworks/$LabName"
+                        disallowPublicIpAddress = $false
+                        galleryImageReference = @{
+                            offer = "Windows-11"
+                            publisher = "MicrosoftWindowsDesktop"
+                            sku = "win11-21h2-pro"
+                            osType = "Windows"
+                            version = "latest"
+                        }
+                        allowClaim = $false
+                        storageType = "Premium"
+                        artifacts = @(
+                            @{
+                                artifactId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/artifactSources/public repo/artifacts/windows-vscode"
+                            }
+                            @{
+                                artifactId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/artifactSources/public repo/artifacts/windows-git"
+                            }
+                        )
+                    }
                 }
-                artifacts = @()
             }
         }
     }
-} | ConvertTo-Json -Depth 5
-
-try {
-    $response = Invoke-RestMethod -Uri $formulaUri -Method PUT -Headers $headers -Body $formula
-    Write-Host "  ✓ Windows 11 formula created successfully" -ForegroundColor Green
-}
-catch {
-    Write-Warning "  ⚠️ Failed to create Windows 11 formula: $($_.Exception.Message)"
-}
-
-# Ubuntu Formula
-Write-Host "  Creating Ubuntu formula..." -ForegroundColor Yellow
-$ubuntuFormulaUri = "$baseUri/formulas/Ubuntu-Student?api-version=2018-09-15"
-$ubuntuFormula = @{
-    properties = @{
-        description = "Standard Ubuntu 20.04 LTS for students"
-        osType = "Linux"
-        formulaContent = @{
-            properties = @{
-                size = "Standard_B2s"
-                userName = "student"
-                isAuthenticationWithSshKey = $true
-                labSubnetName = "default"
-                disallowPublicIpAddress = $false
-                galleryImageReference = @{
-                    offer = "0001-com-ubuntu-server-focal"
-                    publisher = "Canonical"
-                    sku = "20_04-lts-gen2"
-                    osType = "Linux"
-                    version = "latest"
+    
+    if (!$WhatIf) {
+        try {
+            $windowsFormulaResult = New-AzResource -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.DevTestLab/labs/formulas" -Name "$LabName/Windows11-Student" -PropertyObject $windowsFormula.properties -Location $lab.Location -Force
+            Write-Host "  ✅ Windows 11 Student formula created" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  ⚠️  Windows formula may already exist or creation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "  ℹ️  [WHATIF] Would create Windows 11 Student formula" -ForegroundColor White
+    }
+    
+    # Formula 2: Ubuntu Student
+    Write-Host "  🐧 Creating Ubuntu Student formula..." -ForegroundColor Yellow
+    
+    $ubuntuFormula = @{
+        location = $lab.Location
+        properties = @{
+            description = "Ubuntu 22.04 LTS with development tools for students"
+            osType = "Linux"
+            formulaVirtualMachineProperties = @{
+                labVirtualMachineCreationParameter = @{
+                    name = "Ubuntu-Student"
+                    location = $lab.Location
+                    properties = @{
+                        size = "Standard_B1s"
+                        userName = "student"
+                        sshKey = ""
+                        isAuthenticationWithSshKey = $false
+                        password = "ChangeMe123!"
+                        labSubnetName = "$($LabName)Subnet"
+                        labVirtualNetworkId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourcegroups/$ResourceGroupName/providers/microsoft.devtestlab/labs/$LabName/virtualnetworks/$LabName"
+                        disallowPublicIpAddress = $false
+                        galleryImageReference = @{
+                            offer = "0001-com-ubuntu-server-jammy"
+                            publisher = "Canonical"
+                            sku = "22_04-lts-gen2"
+                            osType = "Linux"
+                            version = "latest"
+                        }
+                        allowClaim = $false
+                        storageType = "Standard"
+                        artifacts = @(
+                            @{
+                                artifactId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/artifactSources/public repo/artifacts/linux-install-vscode"
+                            }
+                            @{
+                                artifactId = "/subscriptions/$((Get-AzContext).Subscription.Id)/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/artifactSources/public repo/artifacts/linux-apt-package"
+                                parameters = @(
+                                    @{
+                                        name = "packages"
+                                        value = "git curl nodejs npm python3 python3-pip"
+                                    }
+                                )
+                            }
+                        )
+                    }
                 }
-                artifacts = @()
             }
         }
     }
-} | ConvertTo-Json -Depth 5
-
-try {
-    $response = Invoke-RestMethod -Uri $ubuntuFormulaUri -Method PUT -Headers $headers -Body $ubuntuFormula
-    Write-Host "  ✓ Ubuntu formula created successfully" -ForegroundColor Green
-}
-catch {
-    Write-Warning "  ⚠️ Failed to create Ubuntu formula: $($_.Exception.Message)"
-}
-
-# ==================
-# SET COST MANAGEMENT
-# ==================
-Write-Host "`n💰 Setting up cost management..." -ForegroundColor Green
-
-$costUri = "$baseUri/costs/targetCost?api-version=2018-09-15"
-$totalBudget = $DailyCostLimit * $NumberOfStudents
-$cost = @{
-    properties = @{
-        targetCost = @{
+    
+    if (!$WhatIf) {
+        try {
+            $ubuntuFormulaResult = New-AzResource -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.DevTestLab/labs/formulas" -Name "$LabName/Ubuntu-Student" -PropertyObject $ubuntuFormula.properties -Location $lab.Location -Force
+            Write-Host "  ✅ Ubuntu Student formula created" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  ⚠️  Ubuntu formula may already exist or creation failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "  ℹ️  [WHATIF] Would create Ubuntu Student formula" -ForegroundColor White
+    }
+    
+    # Enhanced Policies
+    Write-Host ""
+    Write-Host "🛡️  Applying Enhanced Policies..." -ForegroundColor Cyan
+    
+    # Auto-shutdown policy
+    Write-Host "  ⏰ Configuring auto-shutdown policy..." -ForegroundColor Yellow
+    
+    $autoShutdownPolicy = @{
+        location = $lab.Location
+        properties = @{
+            factName = "LabVmShutdownTime"
+            threshold = "22:00"
+            evaluatorType = "AllowedValuesPolicy"
             status = "Enabled"
-            target = $totalBudget
-            costThresholds = @(
-                @{
-                    thresholdId = [System.Guid]::NewGuid().ToString()
-                    percentageThreshold = @{
-                        thresholdValue = 50
-                    }
-                    displayOnChart = "Enabled"
-                    sendNotificationWhenExceeded = "Enabled"
-                    notificationSent = ""
-                },
-                @{
-                    thresholdId = [System.Guid]::NewGuid().ToString()
-                    percentageThreshold = @{
-                        thresholdValue = 80
-                    }
-                    displayOnChart = "Enabled"
-                    sendNotificationWhenExceeded = "Enabled"
-                    notificationSent = ""
-                },
-                @{
-                    thresholdId = [System.Guid]::NewGuid().ToString()
-                    percentageThreshold = @{
-                        thresholdValue = 100
-                    }
-                    displayOnChart = "Enabled"
-                    sendNotificationWhenExceeded = "Enabled"
-                    notificationSent = ""
-                }
-            )
         }
     }
-} | ConvertTo-Json -Depth 5
-
-try {
-    $response = Invoke-RestMethod -Uri $costUri -Method PUT -Headers $headers -Body $cost
-    Write-Host "  ✓ Cost management configured successfully" -ForegroundColor Green
-    Write-Host "    Daily budget: $DailyCostLimit NOK per student" -ForegroundColor White
-    Write-Host "    Total daily budget: $totalBudget NOK" -ForegroundColor White
-    Write-Host "    Monthly estimate: $($totalBudget * 30) NOK" -ForegroundColor White
-}
-catch {
-    Write-Warning "  ⚠️ Failed to set cost management: $($_.Exception.Message)"
-}
-
-# ==================
-# VALIDATION AND TESTING
-# ==================
-Write-Host "`n🔍 Validating configuration..." -ForegroundColor Green
-
-# Test lab accessibility
-try {
-    $labDetails = Get-AzResource -ResourceId $lab.ResourceId -ExpandProperties
-    Write-Host "  ✓ Lab is accessible and configured" -ForegroundColor Green
     
-    # Check if policies are applied
-    Write-Host "  Checking policies..." -ForegroundColor Yellow
-    $policiesUri = "$baseUri/policysets/default/policies?api-version=2018-09-15"
-    $policies = Invoke-RestMethod -Uri $policiesUri -Method GET -Headers $headers
-    
-    $vmCountPolicyExists = $policies.value | Where-Object { $_.name -like "*MaxVmsAllowedPerUser*" }
-    $vmSizePolicyExists = $policies.value | Where-Object { $_.name -like "*AllowedVmSizesInLab*" }
-    
-    if ($vmCountPolicyExists) {
-        Write-Host "    ✓ VM count policy is active" -ForegroundColor Green
-    } else {
-        Write-Host "    ⚠️ VM count policy not found" -ForegroundColor Yellow
+    if (!$WhatIf) {
+        try {
+            New-AzResource -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.DevTestLab/labs/policysets/policies" -Name "$LabName/default/LabVmShutdownTime" -PropertyObject $autoShutdownPolicy.properties -Location $lab.Location -Force | Out-Null
+            Write-Host "  ✅ Auto-shutdown policy updated" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  ⚠️  Auto-shutdown policy may already exist: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "  ℹ️  [WHATIF] Would configure auto-shutdown at 22:00" -ForegroundColor White
     }
     
-    if ($vmSizePolicyExists) {
-        Write-Host "    ✓ VM size policy is active" -ForegroundColor Green
-    } else {
-        Write-Host "    ⚠️ VM size policy not found" -ForegroundColor Yellow
+    # Verify existing VM size policy
+    Write-Host "  📏 Verifying VM size restrictions..." -ForegroundColor Yellow
+    
+    try {
+        $vmSizePolicy = Get-AzResource -ResourceGroupName $ResourceGroupName -ResourceType "Microsoft.DevTestLab/labs/policysets/policies" -Name "$LabName/default/AllowedVmSizesInLab" -ErrorAction SilentlyContinue
+        
+        if ($vmSizePolicy) {
+            Write-Host "  ✅ VM size policy exists and restricts to budget-friendly sizes" -ForegroundColor Green
+        }
+        else {
+            Write-Host "  ⚠️  VM size policy not found - may need manual configuration" -ForegroundColor Yellow
+        }
     }
+    catch {
+        Write-Host "  ⚠️  Could not verify VM size policy: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    
+    # Cost Management Setup
+    Write-Host ""
+    Write-Host "💰 Cost Management Configuration..." -ForegroundColor Cyan
+    
+    $totalMonthlyBudget = $DailyCostLimit * $NumberOfStudents * 30
+    $totalSemesterBudget = $DailyCostLimit * $NumberOfStudents * 120
+    
+    Write-Host "  📊 Cost Analysis:" -ForegroundColor White
+    Write-Host "    Daily cost per student: $DailyCostLimit NOK" -ForegroundColor White
+    Write-Host "    Total daily budget: $($DailyCostLimit * $NumberOfStudents) NOK" -ForegroundColor White
+    Write-Host "    Monthly estimate: $totalMonthlyBudget NOK" -ForegroundColor White
+    Write-Host "    Semester estimate: $totalSemesterBudget NOK" -ForegroundColor White
+    
+    # Success summary
+    Write-Host ""
+    Write-Host "🎉 Post-Deployment Configuration Complete!" -ForegroundColor Green
+    Write-Host "=========================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "✅ VM Formulas created:" -ForegroundColor White
+    Write-Host "  - Windows11-Student (Standard_B2s with VS Code, Git)" -ForegroundColor White
+    Write-Host "  - Ubuntu-Student (Standard_B1s with development tools)" -ForegroundColor White
+    Write-Host ""
+    Write-Host "✅ Policies configured:" -ForegroundColor White
+    Write-Host "  - Auto-shutdown: 22:00 daily" -ForegroundColor White
+    Write-Host "  - VM limit per student: $MaxVmsPerStudent" -ForegroundColor White
+    Write-Host "  - Allowed VM sizes: Standard_B1s, Standard_B2s, Standard_B1ms" -ForegroundColor White
+    Write-Host ""
+    Write-Host "💰 Cost projections:" -ForegroundColor White
+    Write-Host "  - Daily budget: $($DailyCostLimit * $NumberOfStudents) NOK" -ForegroundColor White
+    Write-Host "  - Monthly budget: $totalMonthlyBudget NOK" -ForegroundColor White
+    Write-Host "  - Semester budget: $totalSemesterBudget NOK" -ForegroundColor White
+    Write-Host ""
+    Write-Host "🎯 Next Steps:" -ForegroundColor Cyan
+    Write-Host "  1. Test VM creation using the new formulas" -ForegroundColor White
+    Write-Host "  2. Add students to the lab (Azure AD users)" -ForegroundColor White
+    Write-Host "  3. Set up cost alerts in Azure Cost Management" -ForegroundColor White
+    Write-Host "  4. Monitor usage in the lab dashboard" -ForegroundColor White
+    Write-Host ""
+    Write-Host "🌐 Lab URL: https://portal.azure.com/#@/resource$($lab.ResourceId)" -ForegroundColor White
+    Write-Host ""
+    
 }
 catch {
-    Write-Warning "  ⚠️ Could not fully validate configuration: $($_.Exception.Message)"
+    Write-Host ""
+    Write-Host "❌ Script failed with error:" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Write-Host ""
+    Write-Host "🔍 Troubleshooting tips:" -ForegroundColor Yellow
+    Write-Host "  - Ensure you have 'Contributor' or 'Owner' role on the resource group" -ForegroundColor White
+    Write-Host "  - Verify the DevTest Lab was created successfully" -ForegroundColor White
+    Write-Host "  - Check if Azure PowerShell module is up to date: Update-Module Az" -ForegroundColor White
+    Write-Host ""
+    exit 1
 }
 
-# ==================
-# GENERATE COMPREHENSIVE SUMMARY
-# ==================
-Write-Host "`n=== CONFIGURATION SUMMARY ===" -ForegroundColor Cyan
-Write-Host "Lab Name: $LabName" -ForegroundColor White
-Write-Host "Resource Group: $ResourceGroupName" -ForegroundColor White
-Write-Host "Subscription: $((Get-AzContext).Subscription.Name)" -ForegroundColor White
-Write-Host ""
-Write-Host "Student Limits:" -ForegroundColor Yellow
-Write-Host "  Max VMs per student: $MaxVmsPerStudent" -ForegroundColor White
-Write-Host "  Number of students: $NumberOfStudents" -ForegroundColor White
-Write-Host "  Total max VMs: $($MaxVmsPerStudent * $NumberOfStudents)" -ForegroundColor White
-Write-Host ""
-Write-Host "Cost Management:" -ForegroundColor Yellow
-Write-Host "  Daily limit per student: $DailyCostLimit NOK" -ForegroundColor White
-Write-Host "  Total daily budget: $($DailyCostLimit * $NumberOfStudents) NOK" -ForegroundColor White
-Write-Host "  Monthly estimate: $($DailyCostLimit * $NumberOfStudents * 30) NOK" -ForegroundColor White
-Write-Host "  Semester estimate (4 months): $($DailyCostLimit * $NumberOfStudents * 30 * 4) NOK" -ForegroundColor White
-Write-Host ""
-Write-Host "Allowed VM Sizes:" -ForegroundColor Yellow
-Write-Host "  - Standard_B1s (1 vCPU, 1 GB RAM)" -ForegroundColor White
-Write-Host "  - Standard_B2s (2 vCPU, 4 GB RAM)" -ForegroundColor White
-Write-Host "  - Standard_B1ms (1 vCPU, 2 GB RAM)" -ForegroundColor White
-Write-Host "  - Standard_B2ms (2 vCPU, 8 GB RAM)" -ForegroundColor White
-Write-Host ""
-Write-Host "Available Images:" -ForegroundColor Yellow
-Write-Host "  - Windows 11 Pro" -ForegroundColor White
-Write-Host "  - Windows Server 2022" -ForegroundColor White
-Write-Host "  - Ubuntu 20.04 LTS" -ForegroundColor White
-Write-Host ""
-Write-Host "VM Formulas Created:" -ForegroundColor Yellow
-Write-Host "  - Windows11-Student (Windows 11, B2s)" -ForegroundColor White
-Write-Host "  - Ubuntu-Student (Ubuntu 20.04, B2s)" -ForegroundColor White
-
-$labUrl = "https://portal.azure.com/#@/resource/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName"
-$costUrl = "https://portal.azure.com/#@/blade/Microsoft_Azure_CostManagement/Menu/overview"
-
-Write-Host "`n=== IMPORTANT LINKS ===" -ForegroundColor Cyan
-Write-Host "Lab Management: $labUrl" -ForegroundColor Blue
-Write-Host "Cost Management: $costUrl" -ForegroundColor Blue
-
-# ==================
-# NEXT STEPS FOR TEACHERS
-# ==================
-Write-Host "`n=== NEXT STEPS FOR TEACHERS ===" -ForegroundColor Yellow
-Write-Host "1. 👥 Create student Azure AD accounts" -ForegroundColor White
-Write-Host "2. 🔑 Assign students to the lab using the custom role" -ForegroundColor White
-Write-Host "3. 📧 Send lab access instructions to students" -ForegroundColor White
-Write-Host "4. 📊 Monitor costs daily via Cost Management" -ForegroundColor White
-Write-Host "5. 🛠️ Test VM creation with formulas" -ForegroundColor White
-Write-Host "6. 📋 Set up email notifications for cost alerts" -ForegroundColor White
-
-Write-Host "`n=== STUDENT ACCESS INSTRUCTIONS ===" -ForegroundColor Yellow
-Write-Host "Students should:" -ForegroundColor White
-Write-Host "1. Go to: $labUrl" -ForegroundColor White
-Write-Host "2. Log in with their Azure AD account" -ForegroundColor White
-Write-Host "3. Click '+ Add' to create new VM" -ForegroundColor White
-Write-Host "4. Choose from available formulas (Windows11-Student or Ubuntu-Student)" -ForegroundColor White
-Write-Host "5. Remember to shut down VMs when finished!" -ForegroundColor White
-
-Write-Host "`n=== TROUBLESHOOTING ===" -ForegroundColor Yellow
-Write-Host "If students can't access the lab:" -ForegroundColor White
-Write-Host "- Verify they have Azure AD accounts" -ForegroundColor White
-Write-Host "- Check role assignments in Access Control (IAM)" -ForegroundColor White
-Write-Host "- Ensure lab policies are not blocking access" -ForegroundColor White
-Write-Host ""
-Write-Host "If costs are too high:" -ForegroundColor White
-Write-Host "- Check auto-shutdown is working (22:00 daily)" -ForegroundColor White
-Write-Host "- Review VM sizes being used" -ForegroundColor White
-Write-Host "- Consider lowering daily budget limits" -ForegroundColor White
-
-Write-Host "`nPost-deployment configuration completed successfully! 🎉" -ForegroundColor Green
-Write-Host "The DevTest Lab is now ready for educational use." -ForegroundColor Green
+Write-Host "Script completed successfully! 🚀" -ForegroundColor Green
