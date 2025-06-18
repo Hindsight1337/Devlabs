@@ -145,32 +145,43 @@ $ubuntuFormulaFile = Join-Path $tempDir "ubuntu-formula.json"
 Write-Host ""
 Write-Host "Creating VM Formulas..." -ForegroundColor Cyan
 
-# Create Windows 11 Student Formula
-Write-Host "  Creating Windows11-Student formula..." -ForegroundColor Yellow
+# Create Windows Server 2025 Student Formula
+Write-Host "  Creating WindowsServer2025-Student formula..." -ForegroundColor Yellow
 
 $windowsFormula = @{
     properties = @{
-        description = "Windows 11 Pro with development tools for students"
+        description = "Windows Server 2025 Datacenter Core with development tools for students"
         osType = "Windows"
         formulaVirtualMachineProperties = @{
             labVirtualMachineCreationParameter = @{
                 properties = @{
-                    size = "Standard_B2s"
+                    size = "Standard_B1ms"
                     userName = "student"
                     password = "StudentPass123!"
                     isAuthenticationWithSshKey = $false
                     labSubnetName = $subnetName
                     labVirtualNetworkId = "/subscriptions/$subscriptionId/resourcegroups/$ResourceGroupName/providers/microsoft.devtestlab/labs/$LabName/virtualnetworks/$vnetName"
-                    disallowPublicIpAddress = $false
+                    disallowPublicIpAddress = $true
                     galleryImageReference = @{
-                        offer = "Windows-11"
-                        publisher = "MicrosoftWindowsDesktop"
-                        sku = "win11-22h2-pro"
+                        offer = "WindowsServer"
+                        publisher = "MicrosoftWindowsServer"
+                        sku = "2025-datacenter-core-smalldisk"
                         osType = "Windows"
                         version = "latest"
                     }
                     allowClaim = $false
-                    storageType = "Premium"
+                    storageType = "Standard"
+                    hibernationEnabled = $true
+                    networkInterface = @{
+                        sharedPublicIpAddressConfiguration = @{
+                            inboundNatRules = @(
+                                @{
+                                    transportProtocol = "tcp"
+                                    backendPort = 3389
+                                }
+                            )
+                        }
+                    }
                     artifacts = @()
                 }
             }
@@ -182,27 +193,27 @@ $windowsFormula | ConvertTo-Json -Depth 10 | Out-File -FilePath $windowsFormulaF
 
 try {
     # Use REST API call via az rest instead of deprecated lab formula commands
-    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/Windows11-Student?api-version=2018-09-15"
+    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/WindowsServer2025-Student?api-version=2018-09-15"
     
     $result = az rest --method PUT --uri $createFormulaUri --body "@$windowsFormulaFile" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  SUCCESS: Windows11-Student formula created" -ForegroundColor Green
+        Write-Host "  SUCCESS: WindowsServer2025-Student formula created" -ForegroundColor Green
     }
     else {
-        Write-Host "  INFO: Windows11-Student formula may already exist" -ForegroundColor Yellow
+        Write-Host "  INFO: WindowsServer2025-Student formula may already exist" -ForegroundColor Yellow
     }
 }
 catch {
     Write-Host "  WARNING: Could not create Windows formula: $($_.Exception.Message)" -ForegroundColor Yellow
 }
 
-# Create Ubuntu Student Formula
-Write-Host "  Creating Ubuntu-Student formula..." -ForegroundColor Yellow
+# Create Ubuntu Server Student Formula
+Write-Host "  Creating UbuntuServer-Student formula..." -ForegroundColor Yellow
 
 $ubuntuFormula = @{
     properties = @{
-        description = "Ubuntu 22.04 LTS with development tools for students"
+        description = "Ubuntu Server 22.04 LTS with development tools for students"
         osType = "Linux"
         formulaVirtualMachineProperties = @{
             labVirtualMachineCreationParameter = @{
@@ -213,7 +224,7 @@ $ubuntuFormula = @{
                     isAuthenticationWithSshKey = $false
                     labSubnetName = $subnetName
                     labVirtualNetworkId = "/subscriptions/$subscriptionId/resourcegroups/$ResourceGroupName/providers/microsoft.devtestlab/labs/$LabName/virtualnetworks/$vnetName"
-                    disallowPublicIpAddress = $false
+                    disallowPublicIpAddress = $true
                     galleryImageReference = @{
                         offer = "0001-com-ubuntu-server-jammy"
                         publisher = "Canonical"
@@ -223,6 +234,17 @@ $ubuntuFormula = @{
                     }
                     allowClaim = $false
                     storageType = "Standard"
+                    hibernationEnabled = $false
+                    networkInterface = @{
+                        sharedPublicIpAddressConfiguration = @{
+                            inboundNatRules = @(
+                                @{
+                                    transportProtocol = "tcp"
+                                    backendPort = 22
+                                }
+                            )
+                        }
+                    }
                     artifacts = @()
                 }
             }
@@ -234,15 +256,15 @@ $ubuntuFormula | ConvertTo-Json -Depth 10 | Out-File -FilePath $ubuntuFormulaFil
 
 try {
     # Use REST API call via az rest for Ubuntu formula
-    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/Ubuntu-Student?api-version=2018-09-15"
+    $createFormulaUri = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.DevTestLab/labs/$LabName/formulas/UbuntuServer-Student?api-version=2018-09-15"
     
     $result = az rest --method PUT --uri $createFormulaUri --body "@$ubuntuFormulaFile" 2>$null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  SUCCESS: Ubuntu-Student formula created" -ForegroundColor Green
+        Write-Host "  SUCCESS: UbuntuServer-Student formula created" -ForegroundColor Green
     }
     else {
-        Write-Host "  INFO: Ubuntu-Student formula may already exist" -ForegroundColor Yellow
+        Write-Host "  INFO: UbuntuServer-Student formula may already exist" -ForegroundColor Yellow
     }
 }
 catch {
@@ -395,19 +417,22 @@ $instructionsContent = @"
 4. Click "+ Add" to create a new VM
 
 ## Available VM Templates
-### Windows11-Student
-- **OS:** Windows 11 Pro with development tools
-- **Size:** Standard_B2s (2 vCPU, 4GB RAM)
+### WindowsServer2025-Student
+- **OS:** Windows Server 2025 Datacenter Core
+- **Size:** Standard_B1ms (1 vCPU, 2GB RAM)
 - **Username:** student
 - **Password:** StudentPass123!
-- **Storage:** Premium SSD
+- **Storage:** Standard SSD
+- **Hibernation:** Enabled for cost savings
+- **Network:** Shared IP with RDP (port 3389)
 
-### Ubuntu-Student
-- **OS:** Ubuntu 22.04 LTS with development tools  
+### UbuntuServer-Student
+- **OS:** Ubuntu Server 22.04 LTS  
 - **Size:** Standard_B1s (1 vCPU, 1GB RAM)
 - **Username:** student
 - **Password:** StudentPass123!
 - **Storage:** Standard SSD
+- **Network:** Shared IP with SSH (port 22)
 
 ## Important Rules
 - ⚠️ **Maximum $MaxVmsPerStudent VMs per student**
@@ -469,8 +494,8 @@ Write-Host "Post-Deployment Configuration Complete!" -ForegroundColor Green
 Write-Host "=========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "VM Formulas:" -ForegroundColor White
-Write-Host "  - Windows11-Student (Standard_B2s, Premium SSD)" -ForegroundColor White
-Write-Host "  - Ubuntu-Student (Standard_B1s, Standard SSD)" -ForegroundColor White
+Write-Host "  - WindowsServer2025-Student (Standard_B1ms, Standard SSD)" -ForegroundColor White
+Write-Host "  - UbuntuServer-Student (Standard_B1s, Standard SSD)" -ForegroundColor White
 Write-Host ""
 Write-Host "Policies:" -ForegroundColor White
 Write-Host "  - Auto-shutdown: Verified" -ForegroundColor White
